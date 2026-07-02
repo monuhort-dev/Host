@@ -90,13 +90,13 @@ def generate_random_password(length=10):
 
 def load_users():
     if not os.path.exists(USERS_FILE):
-        default = {"admin": {"password": "asd@codex", "role": "admin"}}
+        default = {"admin": {"password": "BISWA@9090", "role": "admin"}}
         save_users(default)
         return default
     with open(USERS_FILE, 'r', encoding='utf-8') as f:
         data = json.load(f)
     if 'admin' not in data:
-        data['admin'] = {"password": "asd@codex", "role": "admin"}
+        data['admin'] = {"password": "BISWA@9090", "role": "admin"}
         save_users(data)
     return data
 
@@ -496,12 +496,71 @@ def login():
         username = request.form.get('username', '')
         password = request.form.get('password', '')
         users = load_users()
-        if username == 'admin' and password == users.get('admin', {}).get('password'):
+        if (username in ('admin', 'godninja909@gmail.com')) and password == users.get('admin', {}).get('password'):
             session['user'] = 'admin'
             session['role'] = 'admin'
             return redirect(url_for('admin_dashboard'))
         return render_template('login.html', error="Invalid credentials!")
     return render_template('login.html', error=None)
+
+# ============================================
+# Register - self-service signup (1 free server)
+# ============================================
+
+@app.route('/register', methods=['POST'])
+def register():
+    data = request.get_json()
+    username = (data.get('username', '') or '').strip()
+    password = (data.get('password', '') or '').strip()
+
+    if len(username) < 3:
+        return jsonify({'status': 'error', 'message': 'Username must be at least 3 characters!'}), 400
+    if len(password) < 4:
+        return jsonify({'status': 'error', 'message': 'Password must be at least 4 characters!'}), 400
+
+    users = load_users()
+    if username in users:
+        return jsonify({'status': 'error', 'message': f"Username '{username}' is already taken!"}), 400
+
+    # Create free server (3 days, 1GB RAM, 30% CPU)
+    server_id = str(uuid.uuid4())[:8]
+    expiry_date = datetime.now() + timedelta(days=30)
+    create_default_files(get_server_dir(server_id))
+
+    host = request.host
+    scheme = 'http' if (host.startswith('localhost') or host.startswith('127.0.0.1') or host.startswith('192.168')) else 'https'
+    login_url = f"/{server_id}/login"
+    full_url  = f"{scheme}://{host}{login_url}"
+
+    new_server = {
+        'server_id': server_id,
+        'login_url': login_url,
+        'dashboard_url': f"/{server_id}/home",
+        'full_link': full_url,
+        'type': 'python',
+        'ram': '1GB', 'disk': '1GB',
+        'status': 'stopped', 'pid': None,
+        'created': str(datetime.now()),
+        'expiry': str(expiry_date),
+        'main_file': 'main.py',
+        'requirements_file': 'requirements.txt',
+        'cpu_limit': 30,
+        'rate_limit_exceeded': False,
+        'stopped_by_user': False
+    }
+
+    users[username] = {'password': password, 'role': 'user', 'servers': [new_server]}
+    save_users(users)
+
+    return jsonify({
+        'status': 'success',
+        'username': username,
+        'password': password,
+        'server_id': server_id,
+        'login_url': login_url,
+        'full_url': full_url,
+        'expiry': expiry_date.strftime('%Y-%m-%d')
+    }), 200
 
 @app.route('/<server_id>/login', methods=['GET', 'POST'])
 def server_login(server_id):
@@ -926,6 +985,6 @@ if __name__ == '__main__':
     print("📍 Landing: http://localhost:5000")
     print("📍 Admin: http://localhost:5000/login")
     print("🔗 API: http://localhost:5000/api/create")
-    print("👤 admin / asd@codex")
+    print("👤 admin: godninja909@gmail.com / BISWA@9090")
     print("=" * 50 + "\n")
     app.run(debug=True, host='0.0.0.0', port=13671)
