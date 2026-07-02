@@ -496,10 +496,25 @@ def login():
         username = request.form.get('username', '')
         password = request.form.get('password', '')
         users = load_users()
+        # Admin login
         if (username in ('admin', 'godninja909@gmail.com')) and password == users.get('admin', {}).get('password'):
             session['user'] = 'admin'
             session['role'] = 'admin'
             return redirect(url_for('admin_dashboard'))
+        # Regular user login — find their first active server
+        if username in users and username != 'admin':
+            udata = users[username]
+            if udata.get('password') == password:
+                servers = udata.get('servers', [])
+                if isinstance(servers, list) and servers:
+                    server_id = servers[0].get('server_id')
+                    if server_id:
+                        session['user'] = username
+                        session['role'] = 'user'
+                        session['current_server_id'] = server_id
+                        return redirect(url_for('server_home', server_id=server_id))
+                return render_template('login.html', error="No server found for your account!")
+            return render_template('login.html', error="Invalid credentials!")
         return render_template('login.html', error="Invalid credentials!")
     return render_template('login.html', error=None)
 
